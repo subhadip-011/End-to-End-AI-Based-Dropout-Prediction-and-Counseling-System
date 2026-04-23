@@ -1,181 +1,188 @@
 import os
 import sys
 import numpy as np
-import pandas as pd
 import dill
 
 from dataclasses import dataclass
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    roc_auc_score,
+    classification_report,
+)
+from xgboost import XGBClassifier
 
 from src.logger import logger
 from src.exception import CustomException
 
 
 # ---------------------------------------------------------------
-# CONFIG — all output paths in one place
+# CONFIG
 # ---------------------------------------------------------------
 @dataclass
-class DataTransformationConfig:
-    preprocessor_path: str = os.path.join("artifacts", "preprocessor.pkl")
+class ModelTrainerConfig:
+    model_path: str = os.path.join("artifacts", "model.pkl")
+    report_path: str = os.path.join("artifacts", "model_report.txt")
 
 
 # ---------------------------------------------------------------
 # MAIN CLASS
 # ---------------------------------------------------------------
-class DataTransformation:
+class ModelTrainer:
     def __init__(self):
-        self.config = DataTransformationConfig()
+        self.config = ModelTrainerConfig()
 
-    def _get_feature_groups(self):
+    def _get_models(self):
         """
-        Split features into two groups:
-        1. Continuous — need StandardScaler (grades, age, GDP etc.)
-        2. Binary/Categorical — already 0/1, no scaling needed
+        Define all candidate models in one dictionary.
 
-        WHY separate them?
-        If we scale binary columns like Gender (0/1),
-        StandardScaler turns them into decimals like -0.7, 1.2
-        which destroys their meaning.
+        WHY these 4 models?
+        - LogisticRegression : Simple baseline — if complex models
+                               don't beat this, something is wrong
+        - RandomForest       : Strong ensemble, handles non-linearity
+        - XGBoost            : Industry standard for tabular data
+        - MLPClassifier      : Neural Network — adds DL component
         """
+        models = {
+            "Logistic Regression": LogisticRegression(
+                max_iter=1000,
+                random_state=42
+            ),
+            "Random Forest": RandomForestClassifier(
+                n_estimators=100,
+                random_state=42,
+                n_jobs=-1           # use all CPU cores
+            ),
+            "XGBoost": XGBClassifier(
+                n_estimators=100,
+                learning_rate=0.1,
+                max_depth=6,
+                use_label_encoder=False,
+                eval_metric="logloss",
+                random_state=42
+            ),
+            "Neural Network": MLPClassifier(
+                hidden_layer_sizes=(64, 32),   # 2 hidden layers
+                activation="relu",
+                max_iter=300,
+                random_state=42
+            ),
+        }
+        return models
 
-        continuous_features = [
-            "Previous qualification (grade)",
-            "Admission grade",
-            "Curricular units 1st sem (grade)",
-            "Curricular units 2nd sem (grade)",
-            "Age at enrollment",
-            "Unemployment rate",
-            "Inflation rate",
-            "GDP",
-            "Curricular units 1st sem (enrolled)",
-            "Curricular units 1st sem (approved)",
-            "Curricular units 1st sem (evaluations)",
-            "Curricular units 2nd sem (enrolled)",
-            "Curricular units 2nd sem (approved)",
-            "Curricular units 2nd sem (evaluations)",
-        ]
-
-        binary_or_categorical_features = [
-            "Marital status",
-            "Application mode",
-            "Application order",
-            "Course",
-            "Daytime/evening attendance",
-            "Previous qualification",
-            "Nacionality",
-            "Mother's qualification",
-            "Father's qualification",
-            "Mother's occupation",
-            "Father's occupation",
-            "Displaced",
-            "Educational special needs",
-            "Debtor",
-            "Tuition fees up to date",
-            "Gender",
-            "Scholarship holder",
-            "International",
-            "Curricular units 1st sem (credited)",
-            "Curricular units 1st sem (without evaluations)",
-            "Curricular units 2nd sem (credited)",
-            "Curricular units 2nd sem (without evaluations)",
-        ]
-
-        return continuous_features, binary_or_categorical_features
-
-    def _build_preprocessor(self, continuous_features, binary_features):
+    def _evaluate_model(self, model, X_train, y_train, X_test, y_test):
         """
-        Builds a Scikit-learn ColumnTransformer pipeline.
+        Trains a model and returns key metrics.
 
-        ColumnTransformer lets us apply DIFFERENT transformations
-        to DIFFERENT columns — all in one reusable object.
-
-        Pipeline is industry standard because:
-        - fit() on train, transform() on test (no data leakage)
-        - Save as .pkl and reuse in production
-        - New data gets same transformation automatically
+        WHY these metrics?
+        - Accuracy  : Overall correctness
+        - F1 Score  : Balances precision & recall — important for
+                      imbalanced data (more Graduates than Dropouts)
+        - ROC-AUC   : How well model separates classes — best single
+                      metric for binary classification
         """
+        model.fit(X_train, y_train)
 
-        # Only scale continuous features
-        continuous_pipeline = Pipeline(steps=[
-            ("scaler", StandardScaler())
-        ])
+        y_pred      = model.predict(X_test)
+        y_pred_prob = model.predict_proba(X_test)[:, 1]  # dropout probability
 
-        # Binary/categorical features pass through unchanged
-        categorical_pipeline = Pipeline(steps=[
-            ("passthrough", "passthrough")
-        ])
-
-        preprocessor = ColumnTransformer(transformers=[
-            ("continuous", continuous_pipeline, continuous_features),
-            ("categorical", categorical_pipeline, binary_features),
-        ])
-
-        return preprocessor
+        metrics = {
+            "accuracy" : round(accuracy_score(y_test, y_pred), 4),
+            "f1_score" : round(f1_score(y_test, y_pred), 4),
+            "roc_auc"  : round(roc_auc_score(y_test, y_pred_prob), 4),
+        }
+        return metrics
 
     def _save_object(self, obj, path):
-        """
-        Saves any Python object (model, preprocessor) as a .pkl file.
-        Uses dill instead of pickle — dill handles complex objects better.
-        """
         with open(path, "wb") as f:
             dill.dump(obj, f)
-        logger.info(f"Object saved to: {path}")
+        logger.info(f"Object saved: {path}")
 
-    def initiate_data_transformation(self, train_path: str, test_path: str):
+    def _save_report(self, report: dict):
+        """
+        Saves model comparison report as a text file.
+        Useful for documentation and GitHub README.
+        """
+        with open(self.config.report_path, "w") as f:
+            f.write("=" * 50 + "\n")
+            f.write("     MODEL COMPARISON REPORT\n")
+            f.write("=" * 50 + "\n\n")
+            for model_name, metrics in report.items():
+                f.write(f"Model     : {model_name}\n")
+                f.write(f"Accuracy  : {metrics['accuracy']}\n")
+                f.write(f"F1 Score  : {metrics['f1_score']}\n")
+                f.write(f"ROC-AUC   : {metrics['roc_auc']}\n")
+                f.write("-" * 40 + "\n")
+        logger.info(f"Report saved: {self.config.report_path}")
+
+    def initiate_model_training(self, train_arr, test_arr):
         """
         Main method:
-        1. Load train and test data
-        2. Separate features (X) and target (y)
-        3. Fit preprocessor on train only
-        4. Transform both train and test
-        5. Save preprocessor as .pkl
-        6. Return transformed arrays
+        1. Split arrays into X, y
+        2. Train all models and compare
+        3. Select best model by ROC-AUC
+        4. Save best model as model.pkl
+        5. Return best model name and score
         """
-        logger.info("========== Data Transformation Started ==========")
+        logger.info(" Model Training Started ")
         try:
-            # Load data
-            train_df = pd.read_csv(train_path)
-            test_df  = pd.read_csv(test_path)
-            logger.info(f"Train shape: {train_df.shape} | Test shape: {test_df.shape}")
+            # Split features and target
+            X_train, y_train = train_arr[:, :-1], train_arr[:, -1]
+            X_test,  y_test  = test_arr[:, :-1],  test_arr[:, -1]
 
-            # Get feature groups
-            continuous_features, binary_features = self._get_feature_groups()
+            logger.info(f"X_train: {X_train.shape} | X_test: {X_test.shape}")
 
-            # Separate X and y
-            target_col = "Target"
+            # Train and evaluate all models
+            models  = self._get_models()
+            report  = {}
+            trained = {}   # store trained model objects
 
-            X_train = train_df.drop(columns=[target_col])
-            y_train = train_df[target_col]
+            logger.info("Training and evaluating all models...")
+            logger.info("-" * 40)
 
-            X_test = test_df.drop(columns=[target_col])
-            y_test = test_df[target_col]
+            for model_name, model in models.items():
+                logger.info(f"Training: {model_name}")
+                metrics = self._evaluate_model(
+                    model, X_train, y_train, X_test, y_test
+                )
+                report[model_name]  = metrics
+                trained[model_name] = model
 
-            logger.info(f"Features: {X_train.shape[1]} | Target distribution (train): {y_train.value_counts().to_dict()}")
+                logger.info(
+                    f"  Accuracy: {metrics['accuracy']} | "
+                    f"F1: {metrics['f1_score']} | "
+                    f"ROC-AUC: {metrics['roc_auc']}"
+                )
+                logger.info("-" * 40)
 
-            # Build preprocessor
-            preprocessor = self._build_preprocessor(continuous_features, binary_features)
+            # Select best model by ROC-AUC score
+            best_model_name = max(
+                report, key=lambda name: report[name]["roc_auc"]
+            )
+            best_model        = trained[best_model_name]
+            best_score        = report[best_model_name]["roc_auc"]
 
-            # IMPORTANT: fit ONLY on train — then transform both
-            # Fitting on test would cause DATA LEAKAGE
-            logger.info("Fitting preprocessor on train data only (preventing data leakage)...")
-            X_train_transformed = preprocessor.fit_transform(X_train)
-            X_test_transformed  = preprocessor.transform(X_test)
+            logger.info(f"Best Model : {best_model_name}")
+            logger.info(f"Best ROC-AUC: {best_score}")
 
-            logger.info(f"Transformed train shape: {X_train_transformed.shape}")
-            logger.info(f"Transformed test shape : {X_test_transformed.shape}")
+            # Minimum threshold — if best model is still bad, raise error
+            if best_score < 0.70:
+                raise CustomException(
+                    "No model crossed ROC-AUC threshold of 0.70. "
+                    "Check data quality.", sys
+                )
 
-            # Combine X and y back into arrays for model trainer
-            train_arr = np.c_[X_train_transformed, np.array(y_train)]
-            test_arr  = np.c_[X_test_transformed,  np.array(y_test)]
+            # Save best model
+            self._save_object(best_model, self.config.model_path)
 
-            # Save preprocessor — needed later for prediction pipeline
-            self._save_object(preprocessor, self.config.preprocessor_path)
+            # Save comparison report
+            self._save_report(report)
 
-            logger.info("========== Data Transformation Completed ==========")
-
-            return train_arr, test_arr, self.config.preprocessor_path
+            logger.info(" Model Training Completed ")
+            return best_model_name, best_score, report
 
         except Exception as e:
             raise CustomException(e, sys)
@@ -183,21 +190,39 @@ class DataTransformation:
 
 # ---------------------------------------------------------------
 # RUN DIRECTLY TO TEST
-# python src/components/data_transformation.py
+# python src/components/model_trainer.py
 # ---------------------------------------------------------------
 if __name__ == "__main__":
     from src.components.data_ingestion import DataIngestion
+    from src.components.data_transformation import DataTransformation
 
-    # First run ingestion to get train/test paths
+    # Step 1: Ingestion
     ingestion = DataIngestion()
-    train_path, test_path = ingestion.initiate_data_ingestion("data.csv")
+    train_path, test_path = ingestion.initiate_data_ingestion("notebook/data/student_data.csv")
 
-    # Then run transformation
+    # Step 2: Transformation
     transformation = DataTransformation()
-    train_arr, test_arr, preprocessor_path = transformation.initiate_data_transformation(
+    train_arr, test_arr, _ = transformation.initiate_data_transformation(
         train_path, test_path
     )
 
-    print(f"\nTrain array shape : {train_arr.shape}")
-    print(f"Test array shape  : {test_arr.shape}")
-    print(f"Preprocessor saved: {preprocessor_path}")
+    # Step 3: Model Training
+    trainer = ModelTrainer()
+    best_model_name, best_score, report = trainer.initiate_model_training(
+        train_arr, test_arr
+    )
+
+    #print("\n" + "=" * 50)
+    
+    print(" FINAL MODEL COMPARISON REPORT ")
+    print("=" * 50)
+    for name, metrics in report.items():
+        print(f"\n{name}")
+        print(f"  Accuracy : {metrics['accuracy']}")
+        print(f"  F1 Score : {metrics['f1_score']}")
+        print(f"  ROC-AUC  : {metrics['roc_auc']}")
+
+    print("\n" + "=" * 50)
+    print(f"  Best Model : {best_model_name}")
+    print(f"  ROC-AUC    : {best_score}")
+    #print("=" * 50)

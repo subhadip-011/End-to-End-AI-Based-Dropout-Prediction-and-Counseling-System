@@ -1,0 +1,24 @@
+==================================================
+     MODEL COMPARISON REPORT
+==================================================
+
+Model     : Logistic Regression
+Accuracy  : 0.9187
+F1 Score  : 0.8956
+ROC-AUC   : 0.9637
+----------------------------------------
+Model     : Random Forest
+Accuracy  : 0.9215
+F1 Score  : 0.8977
+ROC-AUC   : 0.9723
+----------------------------------------
+Model     : XGBoost
+Accuracy  : 0.9229
+F1 Score  : 0.9004
+ROC-AUC   : 0.9688
+----------------------------------------
+Model     : Neural Network
+Accuracy  : 0.7163
+F1 Score  : 0.7224
+ROC-AUC   : 0.9159
+----------------------------------------
