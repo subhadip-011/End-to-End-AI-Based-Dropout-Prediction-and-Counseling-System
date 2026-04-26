@@ -1,0 +1,47 @@
+student_id,alert_type,previous_prob,current_prob,change,previous_risk,current_risk,message,timestamp
+student_3,RISING RISK,0.52,0.72,0.2,Medium Risk,High Risk,Risk increased by 20.0% (Medium Risk → High Risk),2026-04-26 11:21:55
+student_60,RISING RISK,0.15,0.25,0.1,Low Risk,Low Risk,Risk increased by 10.0% (Low Risk → Low Risk),2026-04-26 11:21:55
+student_67,RISING RISK,0.75,0.89,0.14,High Risk,High Risk,Risk increased by 14.0% (High Risk → High Risk),2026-04-26 11:21:55
+student_97,RISING RISK,0.67,0.84,0.17,High Risk,High Risk,Risk increased by 17.0% (High Risk → High Risk),2026-04-26 11:21:55
+student_98,CRITICAL RISK,0.77,0.81,0.04,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 81.0%,2026-04-26 11:21:55
+student_160,RISING RISK,0.76,0.91,0.15,High Risk,High Risk,Risk increased by 15.0% (High Risk → High Risk),2026-04-26 11:21:55
+student_161,RISING RISK,0.3,0.41,0.11,Low Risk,Medium Risk,Risk increased by 11.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_190,RISING RISK,0.47,0.58,0.11,Medium Risk,Medium Risk,Risk increased by 11.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_197,RISING RISK,0.28,0.52,0.24,Low Risk,Medium Risk,Risk increased by 24.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_211,RISING RISK,0.39,0.51,0.12,Medium Risk,Medium Risk,Risk increased by 12.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_219,CRITICAL RISK,0.79,0.85,0.06,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 85.0%,2026-04-26 11:21:55
+student_230,CRITICAL RISK,0.76,0.8,0.04,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 80.0%,2026-04-26 11:21:55
+student_234,RISING RISK,0.39,0.65,0.26,Medium Risk,High Risk,Risk increased by 26.0% (Medium Risk → High Risk),2026-04-26 11:21:55
+student_246,RISING RISK,0.27,0.38,0.11,Low Risk,Medium Risk,Risk increased by 11.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_250,RISING RISK,0.49,0.66,0.17,Medium Risk,High Risk,Risk increased by 17.0% (Medium Risk → High Risk),2026-04-26 11:21:55
+student_265,RISING RISK,0.12,0.22,0.1,Low Risk,Low Risk,Risk increased by 10.0% (Low Risk → Low Risk),2026-04-26 11:21:55
+student_288,CRITICAL RISK,0.79,0.83,0.04,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 83.0%,2026-04-26 11:21:55
+student_341,RISING RISK,0.75,0.87,0.12,High Risk,High Risk,Risk increased by 12.0% (High Risk → High Risk),2026-04-26 11:21:55
+student_363,RISING RISK,0.21,0.32,0.11,Low Risk,Low Risk,Risk increased by 11.0% (Low Risk → Low Risk),2026-04-26 11:21:55
+student_379,RISING RISK,0.37,0.5,0.13,Medium Risk,Medium Risk,Risk increased by 13.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_380,RISING RISK,0.61,0.73,0.12,Medium Risk,High Risk,Risk increased by 12.0% (Medium Risk → High Risk),2026-04-26 11:21:55
+student_401,RISING RISK,0.27,0.48,0.21,Low Risk,Medium Risk,Risk increased by 21.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_404,RISING RISK,0.18,0.29,0.11,Low Risk,Low Risk,Risk increased by 11.0% (Low Risk → Low Risk),2026-04-26 11:21:55
+student_468,CRITICAL RISK,0.79,0.81,0.02,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 81.0%,2026-04-26 11:21:55
+student_485,RISING RISK,0.37,0.5,0.13,Medium Risk,Medium Risk,Risk increased by 13.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_521,RISING RISK,0.71,0.82,0.11,High Risk,High Risk,Risk increased by 11.0% (High Risk → High Risk),2026-04-26 11:21:55
+student_523,RISING RISK,0.47,0.63,0.16,Medium Risk,Medium Risk,Risk increased by 16.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_526,RISING RISK,0.2,0.35,0.15,Low Risk,Medium Risk,Risk increased by 15.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_540,RISING RISK,0.25,0.44,0.19,Low Risk,Medium Risk,Risk increased by 19.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_551,RISING RISK,0.69,0.79,0.1,High Risk,High Risk,Risk increased by 10.0% (High Risk → High Risk),2026-04-26 11:21:55
+student_561,RISING RISK,0.26,0.46,0.2,Low Risk,Medium Risk,Risk increased by 20.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_574,RISING RISK,0.55,0.79,0.24,Medium Risk,High Risk,Risk increased by 24.0% (Medium Risk → High Risk),2026-04-26 11:21:55
+student_586,RISING RISK,0.03,0.16,0.13,Low Risk,Low Risk,Risk increased by 13.0% (Low Risk → Low Risk),2026-04-26 11:21:55
+student_613,RISING RISK,0.34,0.47,0.13,Low Risk,Medium Risk,Risk increased by 13.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_624,RISING RISK,0.37,0.5,0.13,Medium Risk,Medium Risk,Risk increased by 13.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_659,RISING RISK,0.39,0.56,0.17,Medium Risk,Medium Risk,Risk increased by 17.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_665,RISING RISK,0.24,0.36,0.12,Low Risk,Medium Risk,Risk increased by 12.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
+student_668,CRITICAL RISK,0.79,0.81,0.02,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 81.0%,2026-04-26 11:21:55
+student_687,CRITICAL RISK,0.79,0.81,0.02,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 81.0%,2026-04-26 11:21:55
+student_694,RISING RISK,0.5,0.64,0.14,Medium Risk,Medium Risk,Risk increased by 14.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_707,RISING RISK,0.31,0.8,0.49,Low Risk,High Risk,Risk increased by 49.0% (Low Risk → High Risk),2026-04-26 11:21:55
+student_722,RISING RISK,0.37,0.53,0.16,Medium Risk,Medium Risk,Risk increased by 16.0% (Medium Risk → Medium Risk),2026-04-26 11:21:55
+student_762,RISING RISK,0.45,0.86,0.41,Medium Risk,High Risk,Risk increased by 41.0% (Medium Risk → High Risk),2026-04-26 11:21:55
+student_770,CRITICAL RISK,0.76,0.85,0.09,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 85.0%,2026-04-26 11:21:55
+student_773,CRITICAL RISK,0.76,0.82,0.06,High Risk,High Risk,Student crossed CRITICAL threshold! Dropout probability: 82.0%,2026-04-26 11:21:55
+student_785,RISING RISK,0.34,0.45,0.11,Low Risk,Medium Risk,Risk increased by 11.0% (Low Risk → Medium Risk),2026-04-26 11:21:55
