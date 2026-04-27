@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# add .env files, which are commonly used to store environment variables and secrets
+.env
+*.env
+
 # Distribution / packaging
 .Python
 build/

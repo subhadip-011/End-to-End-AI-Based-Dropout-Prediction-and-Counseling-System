@@ -8,13 +8,16 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 # ---------------------------------------------------------------
-# PROJECT ROOT
+# PROJECT ROOT — must be set before any local imports
 # ---------------------------------------------------------------
 PROJECT_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..")
 )
 sys.path.insert(0, PROJECT_ROOT)
 
+# ---------------------------------------------------------------
+# LOCAL IMPORTS — after sys.path is set
+# ---------------------------------------------------------------
 from src.components.risk_classifier import RiskClassifier
 from src.logger import logger
 
@@ -28,7 +31,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------
-# CUSTOM CSS — clean, professional look
+# CUSTOM CSS
 # ---------------------------------------------------------------
 st.markdown("""
 <style>
@@ -68,7 +71,7 @@ st.markdown("""
 
 
 # ---------------------------------------------------------------
-# LOAD RESOURCES — cached so they load only once
+# CACHED RESOURCE LOADERS
 # ---------------------------------------------------------------
 @st.cache_resource
 def load_classifier():
@@ -87,58 +90,82 @@ def load_risk_history():
             return json.load(f)
     return {}
 
+@st.cache_data
+def load_train_data():
+    path = os.path.join(PROJECT_ROOT, "artifacts", "train.csv")
+    return pd.read_csv(path)
+
 
 # ---------------------------------------------------------------
-# HELPER FUNCTIONS
+# LOAD SHAP EXPLAINER SAFELY VIA IMPORTLIB
+# This bypasses all sys.path issues Streamlit causes
+# ---------------------------------------------------------------
+def load_explainer():
+    """
+    Loads DropoutExplainer using its full file path.
+    Works regardless of how Streamlit modifies sys.path.
+    Supports both Explainer_shap.py and explainer.py naming.
+    """
+    import importlib.util
+
+    # Support both naming conventions
+    for name in ["Explainer_shap.py", "explainer.py"]:
+        path = os.path.join(PROJECT_ROOT, "xai", name)
+        if os.path.exists(path):
+            spec   = importlib.util.spec_from_file_location("explainer", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module.DropoutExplainer
+
+    raise FileNotFoundError(
+        "No explainer file found in xai/ folder. "
+        "Expected: Explainer_shap.py or explainer.py"
+    )
+
+
+# ---------------------------------------------------------------
+# PLOT HELPERS
 # ---------------------------------------------------------------
 def get_risk_color(risk_level: str) -> str:
-    return {"High Risk": "#e74c3c", "Medium Risk": "#f39c12", "Low Risk": "#27ae60"}.get(
-        risk_level, "#95a5a6"
-    )
+    return {
+        "High Risk"  : "#e74c3c",
+        "Medium Risk": "#f39c12",
+        "Low Risk"   : "#27ae60"
+    }.get(risk_level, "#95a5a6")
 
-def get_risk_css_class(risk_level: str) -> str:
-    return {"High Risk": "high-risk", "Medium Risk": "medium-risk", "Low Risk": "low-risk"}.get(
-        risk_level, ""
-    )
+def get_risk_css(risk_level: str) -> str:
+    return {
+        "High Risk"  : "high-risk",
+        "Medium Risk": "medium-risk",
+        "Low Risk"   : "low-risk"
+    }.get(risk_level, "")
 
-def plot_risk_gauge(probability: float, risk_level: str) -> go.Figure:
-    """
-    Gauge chart showing dropout probability.
-    Green zone = safe, Yellow = monitor, Red = danger.
-    """
+def plot_gauge(probability: float, risk_level: str) -> go.Figure:
     color = get_risk_color(risk_level)
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
+    fig   = go.Figure(go.Indicator(
+        mode="gauge+number",
         value=round(probability * 100, 1),
         title={"text": "Dropout Risk Score", "font": {"size": 18}},
         number={"suffix": "%", "font": {"size": 36, "color": color}},
         gauge={
-            "axis"  : {"range": [0, 100], "tickwidth": 1},
+            "axis"  : {"range": [0, 100]},
             "bar"   : {"color": color},
             "steps" : [
-                {"range": [0, 35],  "color": "#eafaf1"},
-                {"range": [35, 65], "color": "#fef9e7"},
-                {"range": [65, 100],"color": "#fdecea"},
+                {"range": [0,  35],  "color": "#eafaf1"},
+                {"range": [35, 65],  "color": "#fef9e7"},
+                {"range": [65, 100], "color": "#fdecea"},
             ],
-            "threshold": {
-                "line" : {"color": color, "width": 4},
-                "value": round(probability * 100, 1),
-            },
         },
     ))
     fig.update_layout(height=280, margin=dict(t=40, b=20, l=30, r=30))
     return fig
 
 def plot_shap_bars(explanation: dict) -> go.Figure:
-    """
-    Horizontal bar chart showing top SHAP factors for the student.
-    Red = increases risk, Blue = decreases risk.
-    """
-    risk_factors = explanation["top_risk_factors"]
-    protective   = explanation["top_protective"]
-
-    all_factors = risk_factors + protective
-    all_factors = sorted(all_factors, key=lambda x: abs(x["shap_value"]), reverse=True)[:10]
+    all_factors = sorted(
+        explanation["top_risk_factors"] + explanation["top_protective"],
+        key=lambda x: abs(x["shap_value"]),
+        reverse=True
+    )[:10]
 
     features = [f["feature"] for f in all_factors]
     values   = [f["shap_value"] for f in all_factors]
@@ -154,7 +181,7 @@ def plot_shap_bars(explanation: dict) -> go.Figure:
     ))
     fig.add_vline(x=0, line_dash="dash", line_color="black", line_width=1)
     fig.update_layout(
-        title="Why is this student at risk? (SHAP Explanation)",
+        title="Why are you at this risk level? (SHAP Explanation)",
         xaxis_title="SHAP Value → positive = increases dropout risk",
         height=420,
         margin=dict(l=20, r=80, t=50, b=20),
@@ -162,34 +189,26 @@ def plot_shap_bars(explanation: dict) -> go.Figure:
     )
     return fig
 
-def plot_risk_trend(student_id: str, history: dict) -> go.Figure:
-    """
-    Line chart showing how the student's risk has changed over weeks.
-    """
+def plot_trend(student_id: str, history: dict) -> go.Figure:
     entries = history.get(student_id, [])
     if not entries:
         return None
 
-    weeks  = [e["week"] for e in entries]
-    probs  = [e["probability"] * 100 for e in entries]
-    levels = [e["risk_level"] for e in entries]
+    weeks = [e["week"] for e in entries]
+    probs = [e["probability"] * 100 for e in entries]
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=weeks, y=probs,
         mode="lines+markers",
-        name="Risk Score",
         line=dict(color="#e74c3c", width=2),
         marker=dict(size=8),
         hovertemplate="Week %{x}<br>Risk: %{y:.1f}%<extra></extra>",
     ))
-
-    # Add threshold lines
     fig.add_hline(y=35, line_dash="dot", line_color="#27ae60",
-                  annotation_text="Low/Medium boundary (35%)")
+                  annotation_text="Low/Medium (35%)")
     fig.add_hline(y=65, line_dash="dot", line_color="#e74c3c",
-                  annotation_text="Medium/High boundary (65%)")
-
+                  annotation_text="Medium/High (65%)")
     fig.update_layout(
         title="Your Risk Trend Over Time",
         xaxis_title="Week",
@@ -202,10 +221,12 @@ def plot_risk_trend(student_id: str, history: dict) -> go.Figure:
 
 
 # ---------------------------------------------------------------
-# MAIN DASHBOARD
+# MAIN — everything runs here, student_row defined once and
+#        shared across all sections below it
 # ---------------------------------------------------------------
 def main():
-    # Header
+
+    # ── Header ──────────────────────────────────────────────────
     st.markdown(
         '<div class="main-header">🎓 Student Risk Dashboard</div>',
         unsafe_allow_html=True
@@ -217,127 +238,130 @@ def main():
     )
     st.divider()
 
-    # Load data
+    # ── Load Resources ───────────────────────────────────────────
     classifier   = load_classifier()
     enrolled_df  = load_enrolled_students()
     risk_history = load_risk_history()
 
-    # ── Sidebar: Student Selection ──────────────────────────────
+    # ── Sidebar: Student Selection ───────────────────────────────
     st.sidebar.title("🎓 Student Portal")
     st.sidebar.markdown("---")
 
-    total_students = len(enrolled_df)
-    student_index  = st.sidebar.selectbox(
+    student_index = st.sidebar.selectbox(
         "Select your Student ID",
-        options=range(total_students),
+        options=range(len(enrolled_df)),
         format_func=lambda x: f"Student {x + 1:04d}",
     )
 
     st.sidebar.markdown("---")
     st.sidebar.info(
-        "💡 This dashboard shows your personal dropout risk score "
-        "and explains the key factors affecting your academic journey."
+        "💡 This dashboard shows your personal dropout "
+        "risk and the factors affecting your academic journey."
     )
 
-    # Get selected student data
-    student_row = enrolled_df.iloc[[student_index]]
+    # ── STUDENT ROW — defined here, used in ALL sections below ──
+    student_row = enrolled_df.iloc[[student_index]]   # ✅ single source of truth
     student_id  = f"student_{student_index}"
 
-    # Classify student
+    # ── Classify ─────────────────────────────────────────────────
     result      = classifier.classify(student_row)
     probability = result["dropout_probability"].iloc[0]
     risk_level  = result["risk_level"].iloc[0]
     risk_emoji  = result["risk_emoji"].iloc[0]
     urgency     = result["counseling_urgency"].iloc[0]
+    color       = get_risk_color(risk_level)
+    css_class   = get_risk_css(risk_level)
 
-    # ── Row 1: Risk Overview ────────────────────────────────────
+    # ── Section 1: Risk Overview ─────────────────────────────────
     col1, col2, col3 = st.columns([1.2, 1, 1])
 
     with col1:
-        st.plotly_chart(
-            plot_risk_gauge(probability, risk_level),
-            use_container_width=True
-        )
+        st.plotly_chart(plot_gauge(probability, risk_level),
+                        use_container_width=True)
 
     with col2:
-        css_class = get_risk_css_class(risk_level)
         st.markdown(f"""
         <div class="risk-card {css_class}">
             <h1>{risk_emoji}</h1>
             <h2>{risk_level}</h2>
             <p>Your current risk level</p>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
     with col3:
-        color = get_risk_color(risk_level)
         st.markdown(f"""
-        <div class="metric-box" style="border-left: 4px solid {color}; margin-top: 1rem;">
+        <div class="metric-box" style="border-left:4px solid {color}; margin-top:1rem;">
             <h4>📋 Recommended Action</h4>
             <p style="color:{color}; font-weight:600;">{urgency}</p>
         </div>
-        <div class="metric-box" style="margin-top: 1rem;">
+        <div class="metric-box" style="margin-top:1rem;">
             <h4>📊 Risk Score</h4>
-            <p style="font-size: 2rem; font-weight:bold; color:{color};">
+            <p style="font-size:2rem; font-weight:bold; color:{color};">
                 {round(probability * 100, 1)}%
             </p>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
     st.divider()
 
-    # ── Row 2: SHAP Explanation ─────────────────────────────────
-    st.markdown('<div class="section-header">🔍 Why are you at this risk level?</div>',
-                unsafe_allow_html=True)
+    # ── Section 2: SHAP Explanation ──────────────────────────────
+    # student_row is available here ✅ (defined above in same function)
+    st.markdown(
+        '<div class="section-header">🔍 Why are you at this risk level?</div>',
+        unsafe_allow_html=True
+    )
 
     try:
-        # Build SHAP explainer
-        from xai.explainer import DropoutExplainer
-        train_df  = pd.read_csv(os.path.join(PROJECT_ROOT, "artifacts", "train.csv"))
-        explainer = DropoutExplainer()
+        DropoutExplainer = load_explainer()       # safe importlib load
+        train_df         = load_train_data()
+        explainer        = DropoutExplainer()
         explainer.build_explainer(train_df)
-        explanation = explainer.explain_student(student_row)
+        explanation      = explainer.explain_student(student_row)  # ✅ student_row available
 
         col_shap, col_tips = st.columns([1.5, 1])
 
         with col_shap:
-            st.plotly_chart(
-                plot_shap_bars(explanation),
-                use_container_width=True
-            )
+            st.plotly_chart(plot_shap_bars(explanation), use_container_width=True)
 
         with col_tips:
             st.markdown("**🔴 Top Risk Factors**")
             for item in explanation["top_risk_factors"][:3]:
-                st.error(f"📌 **{item['feature']}**  \nImpact: `{item['shap_value']:+.3f}`")
-
+                st.error(
+                    f"📌 **{item['feature']}**  \n"
+                    f"Impact: `{item['shap_value']:+.3f}`"
+                )
             st.markdown("**🔵 Protective Factors**")
             for item in explanation["top_protective"][:3]:
-                st.success(f"✅ **{item['feature']}**  \nImpact: `{item['shap_value']:+.3f}`")
+                st.success(
+                    f"✅ **{item['feature']}**  \n"
+                    f"Impact: `{item['shap_value']:+.3f}`"
+                )
 
     except Exception as e:
         st.warning(f"SHAP explanation unavailable: {e}")
 
     st.divider()
 
-    # ── Row 3: Risk Trend ───────────────────────────────────────
-    st.markdown('<div class="section-header">📈 Your Risk Trend Over Time</div>',
-                unsafe_allow_html=True)
+    # ── Section 3: Risk Trend ─────────────────────────────────────
+    st.markdown(
+        '<div class="section-header">📈 Your Risk Trend Over Time</div>',
+        unsafe_allow_html=True
+    )
 
-    trend_fig = plot_risk_trend(student_id, risk_history)
+    trend_fig = plot_trend(student_id, risk_history)
     if trend_fig:
         st.plotly_chart(trend_fig, use_container_width=True)
     else:
         st.info(
-            "📭 No trend history yet. "
-            "Run the Early Warning System to generate weekly snapshots."
+            "📭 No trend data yet. "
+            "Run Early Warning System to generate weekly snapshots."
         )
 
     st.divider()
 
-    # ── Row 4: Student Profile ───────────────────────────────────
-    st.markdown('<div class="section-header">👤 Your Academic Profile</div>',
-                unsafe_allow_html=True)
+    # ── Section 4: Academic Profile ───────────────────────────────
+    st.markdown(
+        '<div class="section-header">👤 Your Academic Profile</div>',
+        unsafe_allow_html=True
+    )
 
     profile_cols = [
         "Age at enrollment", "Gender", "Scholarship holder",
@@ -347,19 +371,17 @@ def main():
         "Curricular units 1st sem (grade)",
         "Curricular units 2nd sem (grade)",
     ]
-
-    # Only show columns that exist in the data
-    available = [c for c in profile_cols if c in student_row.columns]
+    available  = [c for c in profile_cols if c in student_row.columns]
     profile_df = student_row[available].T.reset_index()
     profile_df.columns = ["Feature", "Your Value"]
     st.dataframe(profile_df, use_container_width=True, hide_index=True)
 
-    # ── Footer ──────────────────────────────────────────────────
+    # ── Footer ────────────────────────────────────────────────────
     st.divider()
     st.markdown(
         "<p style='text-align:center; color:#bdc3c7; font-size:0.85rem;'>"
         "🔒 Your data is confidential. "
-        "Powered by XGBoost + SHAP | Dropout Prediction System</p>",
+        "Powered by Random Forest + SHAP | Dropout Prediction System</p>",
         unsafe_allow_html=True
     )
 
