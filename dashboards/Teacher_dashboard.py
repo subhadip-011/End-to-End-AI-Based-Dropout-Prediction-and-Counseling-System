@@ -546,6 +546,64 @@ def main():
 
         st.divider()
 
+        # ── Counseling Recommendations ───────────────────────────
+        st.markdown(
+            '<div class="section-header">🎯 Personalized Counseling Plan</div>',
+            unsafe_allow_html=True
+        )
+
+        try:
+            if explanation:
+                import importlib.util as ilu
+                rec_path = os.path.join(PROJECT_ROOT, "counseling", "recommender.py")
+                spec     = ilu.spec_from_file_location("recommender", rec_path)
+                mod      = ilu.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+
+                recommender     = mod.CounselingRecommender()
+                prob_val        = result_df.loc[student_idx, "dropout_probability"]
+                risk_val        = result_df.loc[student_idx, "risk_level"]
+                recommendations = recommender.get_recommendations(
+                    explanation, risk_val, prob_val
+                )
+
+                # Summary + Priority Action
+                st.info(f"📋 {recommendations['summary']}")
+
+                if recommendations["priority_action"]:
+                    pa = recommendations["priority_action"]
+                    st.error(
+                        f"⚡ **Priority Action:** {pa.get('action','')}  \n"
+                        f"📍 **Resource:** {pa.get('resource','')}"
+                    )
+
+                # Expandable cards for each recommendation
+                col_r, col_g = st.columns(2)
+                with col_r:
+                    st.markdown("**📌 Personalized Plan:**")
+                    for rec in recommendations["personalized_recommendations"]:
+                        with st.expander(
+                            f"{rec['icon']} {rec['issue']} [{rec['priority']}]"
+                        ):
+                            st.markdown(f"**Action:** {rec['action']}")
+                            st.markdown(f"**Resource:** {rec['resource']}")
+                            st.markdown(f"**Timeline:** {rec['timeline']}")
+
+                with col_g:
+                    st.markdown("**📋 General Actions:**")
+                    for rec in recommendations["general_recommendations"]:
+                        st.success(
+                            f"{rec['icon']} {rec['action']}  \n"
+                            f"→ *{rec['resource']}*"
+                        )
+            else:
+                st.info("SHAP explanation needed for counseling recommendations.")
+
+        except Exception as e:
+            st.warning(f"Recommendations unavailable: {e}")
+
+        st.divider()
+
         # ── ALERT PANEL ──────────────────────────────────────────
         show_alert_panel(
             student_idx  = student_idx,

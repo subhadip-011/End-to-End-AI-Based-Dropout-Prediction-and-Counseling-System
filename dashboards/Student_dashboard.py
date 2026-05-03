@@ -309,12 +309,13 @@ def main():
         unsafe_allow_html=True
     )
 
+    explanation = None
     try:
-        DropoutExplainer = load_explainer()       # safe importlib load
+        DropoutExplainer = load_explainer()
         train_df         = load_train_data()
         explainer        = DropoutExplainer()
         explainer.build_explainer(train_df)
-        explanation      = explainer.explain_student(student_row)  # ✅ student_row available
+        explanation      = explainer.explain_student(student_row)
 
         col_shap, col_tips = st.columns([1.5, 1])
 
@@ -337,6 +338,58 @@ def main():
 
     except Exception as e:
         st.warning(f"SHAP explanation unavailable: {e}")
+
+    st.divider()
+
+    # ── Section 2.5: Counseling Recommendations ───────────────────
+    st.markdown(
+        '<div class="section-header">🎯 Your Personalized Action Plan</div>',
+        unsafe_allow_html=True
+    )
+
+    try:
+        if explanation:
+            import importlib.util as ilu
+            rec_path = os.path.join(PROJECT_ROOT, "counseling", "recommender.py")
+            spec     = ilu.spec_from_file_location("recommender", rec_path)
+            mod      = ilu.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            recommender     = mod.CounselingRecommender()
+            recommendations = recommender.get_recommendations(
+                explanation, risk_level, probability
+            )
+
+            # Priority action
+            if recommendations["priority_action"]:
+                pa = recommendations["priority_action"]
+                st.error(
+                    f"⚡ **Priority Action:** {pa.get('action','')}  \n"
+                    f"📍 **Resource:** {pa.get('resource','')}"
+                )
+
+            # Summary
+            st.info(f"📋 **Summary:** {recommendations['summary']}")
+
+            # Personalized recs as expandable cards
+            st.markdown("**📌 Personalized Recommendations:**")
+            for rec in recommendations["personalized_recommendations"]:
+                with st.expander(
+                    f"{rec['icon']} {rec['issue']} — Priority: {rec['priority']}"
+                ):
+                    st.markdown(f"**🎯 Action:** {rec['action']}")
+                    st.markdown(f"**📚 Resource:** {rec['resource']}")
+                    st.markdown(f"**⏰ Timeline:** {rec['timeline']}")
+
+            # General recs
+            st.markdown("**📋 General Recommendations:**")
+            for rec in recommendations["general_recommendations"]:
+                st.success(f"{rec['icon']} {rec['action']} → *{rec['resource']}*")
+        else:
+            st.info("SHAP explanation needed for personalized recommendations.")
+
+    except Exception as e:
+        st.warning(f"Recommendations unavailable: {e}")
 
     st.divider()
 
